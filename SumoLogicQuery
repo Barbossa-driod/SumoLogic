@@ -1,0 +1,20 @@
+_sourceCategory="Connectors"
+| if(message matches "*java.lang.IllegalStateException: Duplicate *","Duplicate","") as Code
+| parse "\"message\":\"* ERROR c.s.b.c.client.StreamlineClient - *:\"" as Text,Code nodrop
+| parse "\"message\":\"org.springframework.web.client.HttpServerErrorException$InternalServerError: * Internal Server Error: *\"" as Code,Texte nodrop
+| parse "\"message\":\"org.springframework.web.client.HttpServerErrorException$BadGateway: *:*\"" as Code,Text nodrop
+| parse "\"message\":\"*Error message: timeout,*\"" as Text,Code nodrop
+| parse "\"message\":\"org.springframework.web.client.HttpClientErrorException$Forbidden: *:*\"" as Code,Text nodrop
+| parse "\"message\":\"*Code: *\"" as Text,Code nodrop
+| parse "\"message\":\"java.io.IOException: *\"" as Code nodrop
+| parse "\"message\":\"*error code: *\"" as Text,Code nodrop
+| parse field=_sourcename "*/" as ConnectorName
+| if(Code matches "*;*",substring(Code, 0, 3), if ((Text matches "*GetReservationByNumber call failed with Reservation Number*"),"",Code)) as AbsoluteCode
+| if(Code matches " Error: {}","timeout",AbsoluteCode) as AbsoluteCode
+| count as Quantity by AbsoluteCode, ConnectorName
+| sort by AbsoluteCode, ConnectorName
+| accum Quantity as QuantityUntilNow by ConnectorName 
+| where ConnectorName!="legacy-sync-connector"
+| where ConnectorName!="guesty-integration-connector"
+| where !isEmpty(AbsoluteCode)
+| total Quantity as totalQuantity by ConnectorName
